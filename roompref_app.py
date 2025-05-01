@@ -5,7 +5,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
 
+st.set_page_config(layout="wide")
 st.title("ROOMPREF Clustering (2 Clusters per Gender)")
 
 uploaded_file = st.file_uploader("Upload your ROOMPREF CSV file", type=["csv"])
@@ -46,8 +48,7 @@ if uploaded_file:
         "How flexible are you with your sleeping habits and environment? ",
     ]
 
-    k = 2  # Fixed number of clusters per gender/chronotype group
-
+    k = 2
     all_results = []
     grouped = df.groupby([gender_col, "ChronoTypeCategory"])
 
@@ -70,18 +71,32 @@ if uploaded_file:
             group["Cluster"] = 0
 
         group["Group Label"] = f"{gender} - {chrono}" + " - Cluster " + group["Cluster"].astype(str)
+        for i, col in enumerate(preference_columns):
+            group[f"Feature_{i}"] = X[:, i]
         all_results.append(group)
 
     final_df = pd.concat(all_results)
-    st.subheader("Grouped Output")
+    st.subheader("Grouped Output Table")
     st.write(final_df[[name_col, gender_col, "ChronoTypeCategory", "Group Label"]])
 
-    st.subheader("📊 Visual Summary of Groupings")
+    st.subheader("📋 Room Assignments by Group")
+    group_table = final_df.groupby(["Gender", "ChronoTypeCategory", "Cluster"])[name_col].apply(list).reset_index()
+    st.dataframe(group_table.rename(columns={name_col: "Participants"}))
+
+    st.subheader("📊 Group Sizes by Gender and Chronotype")
     group_counts = final_df.groupby(["Gender", "ChronoTypeCategory", "Cluster"]).size().reset_index(name="Count")
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig1, ax = plt.subplots(figsize=(10, 5))
     sns.barplot(data=group_counts, x="ChronoTypeCategory", y="Count", hue="Gender", ax=ax)
-    plt.title("Group Sizes by Gender and Chronotype")
-    st.pyplot(fig)
+    ax.set_title("Number of Participants per Group")
+    st.pyplot(fig1)
+
+    st.subheader("🔥 Group Preference Patterns (Heatmap)")
+    features = [f"Feature_{i}" for i in range(len(preference_columns))]
+    avg_prefs = final_df.groupby("Group Label")[features].mean()
+    fig3, ax = plt.subplots(figsize=(12, 6))
+    sns.heatmap(avg_prefs, annot=True, cmap="coolwarm", linewidths=0.5, xticklabels=preference_columns)
+    ax.set_title("Average Standardized Preference Scores by Group")
+    st.pyplot(fig3)
 
     csv = final_df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Clustered CSV", csv, "roompref_gender_clusters_fixed2.csv", "text/csv")
+    st.download_button("Download Clustered CSV", csv, "roompref_gender_clusters_no_plotly.csv", "text/csv")
