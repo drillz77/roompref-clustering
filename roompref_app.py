@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans
-from sklearn.decomposition import PCA
 
 st.set_page_config(layout="wide")
 st.title("ROOMPREF Clustering (2 Clusters per Gender)")
@@ -71,8 +70,6 @@ if uploaded_file:
             group["Cluster"] = 0
 
         group["Group Label"] = f"{gender} - {chrono}" + " - Cluster " + group["Cluster"].astype(str)
-        for i, col in enumerate(preference_columns):
-            group[f"Feature_{i}"] = X[:, i]
         all_results.append(group)
 
     final_df = pd.concat(all_results)
@@ -90,13 +87,5 @@ if uploaded_file:
     ax.set_title("Number of Participants per Group")
     st.pyplot(fig1)
 
-    st.subheader("🔥 Group Preference Patterns (Heatmap)")
-    features = [f"Feature_{i}" for i in range(len(preference_columns))]
-    avg_prefs = final_df.groupby("Group Label")[features].mean()
-    fig3, ax = plt.subplots(figsize=(12, 6))
-    sns.heatmap(avg_prefs, annot=True, cmap="coolwarm", linewidths=0.5, xticklabels=preference_columns)
-    ax.set_title("Average Standardized Preference Scores by Group")
-    st.pyplot(fig3)
-
     csv = final_df.to_csv(index=False).encode("utf-8")
-    st.download_button("Download Clustered CSV", csv, "roompref_gender_clusters_no_plotly.csv", "text/csv")
+    st.download_button("Download Clustered CSV", csv, "roompref_gender_clusters.csv", "text/csv")
