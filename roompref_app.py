@@ -1,7 +1,7 @@
+import base64
 import io
 from pathlib import Path
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -12,10 +12,12 @@ EXAMPLE_FILE = APP_DIR / "ROOMPREF_example_120.csv"
 TEMPLATE_URL = "https://www.siestaresearch.com/roompref"
 REPO_URL = "https://github.com/drillz77/roompref-clustering"
 
+# short labels per question (noise and lighting share the wording "Doesn't Matter", so keep them separate)
 SHORT = {
-    NOISE[0]: "Silence", NOISE[1]: "Low noise", NOISE[2]: "Any noise",
-    LIGHT[0]: "Dark", LIGHT[1]: "Dim light", LIGHT[2]: "Any light",
-    TEMP[0]: "Cool", TEMP[1]: "Moderate", TEMP[2]: "Warm",
+    "Noise": {NOISE[0]: "Silence", NOISE[1]: "Low noise", NOISE[2]: "Any noise"},
+    "Lighting": {LIGHT[0]: "Dark", LIGHT[1]: "Dim light", LIGHT[2]: "Any light"},
+    "Temperature": {TEMP[0]: "Cool", TEMP[1]: "Moderate", TEMP[2]: "Warm"},
+    "ChronoTypeCategory": {c: c for c in CHRONO_CATS},
 }
 SEX_COLOURS = ["#7F77DD", "#1D9E75", "#D85A30", "#378ADD"]
 
@@ -42,7 +44,7 @@ def group_label(raw_label):
 
 
 def profile(gdf):
-    return " · ".join(SHORT[gdf[c].mode().iloc[0]] for c in ["Noise", "Lighting", "Temperature"])
+    return " · ".join(SHORT[c][gdf[c].mode().iloc[0]] for c in ["Noise", "Lighting", "Temperature"])
 
 
 def match_mark(members, col):
@@ -51,21 +53,58 @@ def match_mark(members, col):
     return "✓" if len({m[col] for m in members}) == 1 else "✗"
 
 
-def bar_chart(df, col, order, title):
-    data = (df.groupby([col, "Sex"]).size().reset_index(name="People")
-              .rename(columns={col: "Response"}))
-    data["Response"] = data["Response"].map(lambda v: SHORT.get(v, v))
-    order = [SHORT.get(o, o) for o in order]
+def _nice_max(v):
+    """A round axis maximum just above v, with 5 equal ticks."""
+    for step in (1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 25, 30, 40, 50, 100, 200, 250, 500):
+        if v <= step * 5:
+            return step * 5, step
+    return v, max(1, v // 5)
+
+
+def bar_chart_svg(df, col, order, title):
+    """Horizontal stacked bar chart (one bar per response, split by sex) as an SVG string.
+    Drawn directly rather than with Altair so it renders the same in every Streamlit version."""
     sexes = sorted(df["Sex"].unique())
-    return (alt.Chart(data, title=title)
-            .mark_bar()
-            .encode(
-                y=alt.Y("Response:N", sort=order, title=None),
-                x=alt.X("sum(People):Q", title="People"),
-                color=alt.Color("Sex:N", scale=alt.Scale(domain=sexes, range=SEX_COLOURS[:len(sexes)]),
-                                legend=alt.Legend(orient="top", title=None)),
-                tooltip=["Response", "Sex", "People"])
-            .properties(height=150, width="container"))
+    colour = dict(zip(sexes, SEX_COLOURS))
+    counts = df.groupby([col, "Sex"]).size()
+    rows = [(SHORT[col].get(o, o), [int(counts.get((o, s), 0)) for s in sexes]) for o in order]
+    xmax, step = _nice_max(max(1, max(sum(v) for _, v in rows)))
+    W, lx, top, bh, gap = 520, 84, 48, 26, 10
+    pw = W - lx - 34
+    H = top + len(rows) * (bh + gap) + 42
+    grey = "#808495"
+    s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="100%" '
+         f'font-family="&apos;Source Sans Pro&apos;, &apos;Source Sans 3&apos;, &apos;Segoe UI&apos;, Helvetica, Arial, sans-serif" font-size="13">',
+         f'<text x="0" y="16" font-size="16" font-weight="600" fill="{grey}">{title}</text>']
+    lgx = lx
+    for sx in sexes:
+        s.append(f'<rect x="{lgx}" y="27" width="10" height="10" rx="2" fill="{colour[sx]}"/>'
+                 f'<text x="{lgx + 15}" y="36" fill="{grey}">{sx}</text>')
+        lgx += 15 + 8 * len(sx) + 22
+    for t in range(0, xmax + 1, step):
+        x = lx + pw * t / xmax
+        s.append(f'<line x1="{x:.1f}" y1="{top - 4}" x2="{x:.1f}" y2="{H - 38}" stroke="{grey}" stroke-opacity="0.25"/>'
+                 f'<text x="{x:.1f}" y="{H - 22}" text-anchor="middle" fill="{grey}" font-size="12">{t}</text>')
+    s.append(f'<text x="{lx + pw / 2:.1f}" y="{H - 3}" text-anchor="middle" fill="{grey}" font-size="11">People</text>')
+    for i, (label, vals) in enumerate(rows):
+        y = top + i * (bh + gap)
+        x = lx
+        s.append(f'<text x="{lx - 8}" y="{y + bh / 2 + 4.5}" text-anchor="end" fill="{grey}">{label}</text>')
+        for sx, v in zip(sexes, vals):
+            w = pw * v / xmax
+            if v:
+                s.append(f'<rect x="{x:.1f}" y="{y}" width="{w:.1f}" height="{bh}" fill="{colour[sx]}">'
+                         f'<title>{label} · {sx}: {v}</title></rect>')
+            x += w
+        s.append(f'<text x="{x + 6:.1f}" y="{y + bh / 2 + 4.5}" fill="{grey}" font-size="12">{sum(vals)}</text>')
+    s.append("</svg>")
+    return "".join(s)
+
+
+def show_svg(container, svg):
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("ascii")
+    container.markdown(f'<img src="data:image/svg+xml;base64,{b64}" style="width:100%;max-width:640px" '
+                       f'alt="bar chart"/>', unsafe_allow_html=True)
 
 
 def rooms_table(rooms):
@@ -170,7 +209,7 @@ st.title("ROOMPREF – roommate matching")
 sex_counts = df["Sex"].value_counts()
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Respondents", len(df), help=" · ".join(f"{k}: {v}" for k, v in sex_counts.items()))
-c1.caption(" · ".join(f"{v} {k[0]}" for k, v in sex_counts.items()))
+c1.caption(" · ".join(f"{sex_counts[k]} {k[0]}" for k in sorted(sex_counts.index)))
 if auto:
     n_conf = sum("Snore" in r["Warnings"] for r in rooms)
     n_under = sum("Underfilled" in r["Warnings"] for r in rooms)
@@ -191,10 +230,10 @@ tab_overview, tab_groups, tab_rooms, tab_help = st.tabs(["Overview", "Groups", "
 # ---------------------------------------------------------------- overview
 with tab_overview:
     left, right = st.columns(2)
-    left.altair_chart(bar_chart(df, "ChronoTypeCategory", CHRONO_CATS, "Chronotype"))
-    right.altair_chart(bar_chart(df, "Noise", NOISE, "Noise"))
-    left.altair_chart(bar_chart(df, "Lighting", LIGHT, "Lighting"))
-    right.altair_chart(bar_chart(df, "Temperature", TEMP, "Temperature"))
+    show_svg(left, bar_chart_svg(df, "ChronoTypeCategory", CHRONO_CATS, "Chronotype"))
+    show_svg(right, bar_chart_svg(df, "Noise", NOISE, "Noise"))
+    show_svg(left, bar_chart_svg(df, "Lighting", LIGHT, "Lighting"))
+    show_svg(right, bar_chart_svg(df, "Temperature", TEMP, "Temperature"))
     st.caption(f"Snoring: {int((df['Snore'] == 'Yes').sum())} of {len(df)} people.")
 
 # ---------------------------------------------------------------- groups
@@ -219,7 +258,7 @@ with tab_groups:
             with st.expander("Show people"):
                 show = gdf[["Name", "Noise", "Lighting", "Temperature", "Snore", "Comments"]].copy()
                 for c in ["Noise", "Lighting", "Temperature"]:
-                    show[c] = show[c].map(SHORT)
+                    show[c] = show[c].map(SHORT[c])
                 st.dataframe(show, hide_index=True)
 groups_df = pd.DataFrame(groups_rows)
 

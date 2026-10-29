@@ -177,7 +177,7 @@ The app processes the uploaded file in memory for the current session only. It d
 
 | Version | Changes |
 |---|---|
-| 2.1 (October 2026) | Redesigned interface (sidebar, summary tiles, charts by sex, group cards, room table with match markers and notes, Excel download, example data); people who both snore and need silence are now kept within their sex × chronotype subgroup. Matching results are otherwise unchanged. |
+| 2.1 (October 2026) | Redesigned interface (sidebar, summary tiles, charts by sex (drawn directly, no Altair dependency), group cards, room table with match markers and notes, Excel download, example data); people who both snore and need silence are now kept within their sex × chronotype subgroup. Matching results are otherwise unchanged. |
 | 2.0 (October 2026) | Nearest-neighbour room allocation within clusters; improved snore–silence swapping; ordered encoding of preferences; more robust CSV reading; underfilled rooms labelled in the output; logic moved to `roompref_core.py`. |
 | 1.0 (2024–2025) | Original version, used in the pilot with Paralympic athletes before the Paris 2024 Paralympic Games. Rooms within each cluster were filled in the order in which responses were received. |
 
