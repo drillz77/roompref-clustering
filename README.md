@@ -77,7 +77,7 @@ The chronotype item is the self-assessment item from the Morningness–Eveningne
    | Definitely an ‘evening’ type | Evening |
 
    Because everything that follows happens within these sex × chronotype subgroups, the automatic allocation never places Morning and Evening types in the same room.
-3. **People who both snore and need silence.** Anyone who reports snoring *and* needing absolute silence is set aside in a separate, clearly labelled group for the coordinator to review. These people are hard to place in any shared room, because they may disturb a silence-sensitive roommate and be disturbed by a snoring one.
+3. **People who both snore and need silence.** Anyone who reports snoring *and* needing absolute silence is set aside (within their own sex × chronotype subgroup) in a separate, clearly labelled group for the coordinator to review. These people are hard to place in any shared room, because they may disturb a silence-sensitive roommate and be disturbed by a snoring one.
 4. **Clustering on sleep-environment preferences.** Noise, lighting and temperature preferences are converted to ordered numbers (e.g., Absolute Silence = 0, Low Background Noise = 1, Doesn’t Matter = 2). They are then standardised so that each preference counts equally. Within each subgroup, K-Means clustering splits people into groups with similar preferences: one cluster for subgroups of three or fewer people, and two clusters for subgroups of four or more. This keeps groups at a practical size for room allocation.
 5. **Nearest-neighbour room allocation** (when automatic allocation is switched on). Within each cluster, the app works out how different every pair of people is in their noise, lighting and temperature preferences. Any pairing of a snorer with someone who needs absolute silence receives a large penalty. Each room is started with the most similar available pair; for rooms of three or four, further occupants are added one at a time, choosing whoever is most similar to the people already in the room. Anyone left over goes into an underfilled room.
 6. **Snore–silence swapping.** If a room still contains a snorer and a different person who needs absolute silence, the app tests exchanging occupants with other rooms in the same cluster. It applies the exchange that removes the most conflicts, preferring exchanges that keep roommates’ preferences similar. Rooms never exceed the chosen size.
@@ -177,6 +177,7 @@ The app processes the uploaded file in memory for the current session only. It d
 
 | Version | Changes |
 |---|---|
+| 2.1 (October 2026) | Redesigned interface (sidebar, summary tiles, charts by sex, group cards, room table with match markers and notes, Excel download, example data); people who both snore and need silence are now kept within their sex × chronotype subgroup. Matching results are otherwise unchanged. |
 | 2.0 (October 2026) | Nearest-neighbour room allocation within clusters; improved snore–silence swapping; ordered encoding of preferences; more robust CSV reading; underfilled rooms labelled in the output; logic moved to `roompref_core.py`. |
 | 1.0 (2024–2025) | Original version, used in the pilot with Paralympic athletes before the Paris 2024 Paralympic Games. Rooms within each cluster were filled in the order in which responses were received. |
 

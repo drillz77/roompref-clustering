@@ -105,6 +105,9 @@ def prepare(df):
         "Snore": df[cols["snore"]].map(lambda v: "Yes" if _norm(v).startswith("yes") else "No"),
         "ChronoTypeCategory": df[cols["chrono"]].map(canon_chrono),
     })
+    comment_cols = [c for c in df.columns if "other information" in c.lower() or "comment" in c.lower()]
+    out["Comments"] = (df[comment_cols[0]].fillna("").astype(str).str.strip() if comment_cols else "")
+    out.loc[out["Comments"].str.lower().isin(["nan", "none"]), "Comments"] = ""
     bad = out[out[["Noise", "Lighting", "Temperature", "ChronoTypeCategory"]].isna().any(axis=1)]
     return out.dropna(subset=["Noise", "Lighting", "Temperature", "ChronoTypeCategory"]).reset_index(drop=True), bad
 
@@ -122,7 +125,8 @@ def encode(df):
 
 
 def group(df):
-    """Flag self-conflicts, then K-Means within sex x chronotype subgroups (k=1 if n<=3, else k=2)."""
+    """Group by sex x chronotype. Within each subgroup, people who both snore and need silence are set aside
+    (kept within their sex x chronotype subgroup); the rest are clustered with K-Means (k=1 if n<=3, else k=2)."""
     df = df.copy()
     df["SelfConflict"] = (df["Snore"] == "Yes") & (df["Noise"] == NOISE[0])
     Z = encode(df)
@@ -142,7 +146,8 @@ def group(df):
     conf = df[df["SelfConflict"]].copy()
     if not conf.empty:
         conf["ClusterID"] = -1
-        conf["RoomGroup"] = conf["Sex"] + " | Conflict (snores and requires silence)"
+        conf["RoomGroup"] = (conf["Sex"] + " | " + conf["ChronoTypeCategory"]
+                             + " | Conflict (snores and requires silence)")
         pieces.append(conf)
     return pd.concat(pieces, ignore_index=True)
 
